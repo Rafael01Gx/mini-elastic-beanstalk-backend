@@ -48,12 +48,12 @@ app:
 
   security:
     jwt:
-      secret: ${JWT_SECRET:hde478sf00fr210h}
+      secret: ${JWT_SECRET:hde478sfrewrwrwrwr0w9r0wr9werig0fghjdfnikhjndkn0e089shsnfe9fhsef9heba9e8fhse9uneiaes092hih2h980324ui32h4i23noih98fds00fr210h}
       expiration: ${JWT_EXPIRATION:86400000}  # 24 hours
       cookie-name: ${JWT_COOKIE_NAME:auth-token}
       cookie-secure: ${COOKIE_SECURE:false}
-      cookie-http-only: ${JWT_COOKIE_HTTP_ONLY:true}
-      cookie-same-site: ${JWT_COOKIE_SAME_SITE:Strict}
+      cookie-http-only: ${JWT_COOKIE_HTTP_ONLY:false}
+      cookie-same-site: ${JWT_COOKIE_SAME_SITE:Lax}
 
   monitoring:
     prometheus:

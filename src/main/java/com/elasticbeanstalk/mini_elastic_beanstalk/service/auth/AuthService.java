@@ -5,8 +5,14 @@ import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.request.RegisterRe
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.AuthResponse;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.User;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.enums.UserRole;
+import com.elasticbeanstalk.mini_elastic_beanstalk.exception.BusinessException;
 import com.elasticbeanstalk.mini_elastic_beanstalk.repository.UserRepository;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -26,10 +32,13 @@ public class AuthService {
     @Autowired
     private AuthenticationManager authenticationManager;
 
+    @Value("${app.security.jwt.cookie-name}")
+    private String cookieName;
+
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
-            throw new RuntimeException("Email já cadastrado");
+            throw new BusinessException("Email já cadastrado");
         }
         User user = createUser(request);
         String token = jwtService.generateToken(user);
@@ -46,11 +55,30 @@ public class AuthService {
         );
 
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));;
+                .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
 
         String token = jwtService.generateToken(user);
 
         return new AuthResponse(token, user.getEmail(), user.getRole());
+    }
+
+    public ResponseEntity<?> me(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return ResponseEntity.status(401).body("Cookie não encontrado");
+        }
+        String token = null;
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals(cookieName)) {
+                token = cookie.getValue();
+                break;
+            }
+        }
+        if (token == null) {
+            return ResponseEntity.status(401).body("Cookie não encontrado");
+        }
+        User user = userRepository.findByEmail(jwtService.extractUsername(token)).orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
+        return ResponseEntity.ok(new AuthResponse(token, user.getEmail(), user.getRole()));
     }
 
     @Transactional
@@ -62,6 +90,32 @@ public class AuthService {
                 .role(UserRole.USER)
                 .build();
 
-      return  userRepository.save(user);
+        return userRepository.save(user);
     }
+
+    public void setAuthCookie(HttpServletResponse response, String token) {
+
+        int maxAge = 86400; // 24h
+
+        String cookie = String.format(
+                "%s=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=Lax",
+                cookieName,
+                token,
+                maxAge
+        );
+
+        response.addHeader("Set-Cookie", cookie);
+    }
+
+
+
+    public void clearAuthCookie(HttpServletResponse response) {
+
+        String cookie = String.format(
+                "%s=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax",
+                cookieName
+        );
+        response.addHeader("Set-Cookie", cookie);
+    }
+
 }
