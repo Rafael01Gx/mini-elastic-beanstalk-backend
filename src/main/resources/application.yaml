@@ -37,6 +37,11 @@ spring:
 
 # Application Configuration
 app:
+  docker:
+    host: unix:///var/run/docker.sock
+    api-version: "1.43"
+    connection-timeout: 30000
+    read-timeout: 60000
 
   storage:
     base-path: ${STORAGE_PATH:/data/servers}
@@ -49,6 +54,74 @@ app:
       cookie-secure: ${COOKIE_SECURE:false}
       cookie-http-only: ${JWT_COOKIE_HTTP_ONLY:true}
       cookie-same-site: ${JWT_COOKIE_SAME_SITE:Strict}
+
+  monitoring:
+    prometheus:
+      enabled: true
+      port: 9090
+    cadvisor:
+      enabled: true
+      port: 8080
+    grafana:
+      enabled: true
+      port: 3000
+
+# Management Endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers
+      base-path: /actuator
+
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
+    metrics:
+      enabled: true
+
+    prometheus:
+      enabled: true
+
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+        step: 10s
+        descriptions: true
+
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active}
+
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+      slo:
+        http.server.requests: 50ms,100ms,200ms,500ms,1s,2s
+
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.elasticbeanstalk: DEBUG
+    com.github.dockerjava: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/application.log
+    max-size: 10MB
+    max-history: 30
 
 # SpringDoc OpenAPI
 springdoc:
