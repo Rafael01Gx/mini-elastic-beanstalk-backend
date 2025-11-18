@@ -3,6 +3,7 @@ package com.elasticbeanstalk.mini_elastic_beanstalk.service.auth;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.request.LoginRequest;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.request.RegisterRequest;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.AuthResponse;
+import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.UserDetails;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.User;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.enums.UserRole;
 import com.elasticbeanstalk.mini_elastic_beanstalk.exception.BusinessException;
@@ -43,23 +44,23 @@ public class AuthService {
         User user = createUser(request);
         String token = jwtService.generateToken(user);
 
-        return new AuthResponse(token, user.getEmail(), user.getRole());
+        return new AuthResponse(token, user.getName() ,user.getEmail(), user.getRole());
     }
 
     public AuthResponse login(LoginRequest request) {
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.email(),
                         request.password()
                 )
         );
-
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
 
         String token = jwtService.generateToken(user);
 
-        return new AuthResponse(token, user.getEmail(), user.getRole());
+        return new AuthResponse(token, user.getName() ,user.getEmail(), user.getRole());
     }
 
     public ResponseEntity<?> me(HttpServletRequest request) {
@@ -78,7 +79,8 @@ public class AuthService {
             return ResponseEntity.status(401).body("Cookie não encontrado");
         }
         User user = userRepository.findByEmail(jwtService.extractUsername(token)).orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
-        return ResponseEntity.ok(new AuthResponse(token, user.getEmail(), user.getRole()));
+
+        return ResponseEntity.ok(new UserDetails(user));
     }
 
     @Transactional

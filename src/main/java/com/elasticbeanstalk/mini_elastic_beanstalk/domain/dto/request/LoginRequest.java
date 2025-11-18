@@ -9,6 +9,7 @@ public record LoginRequest(
         @NotBlank
         @Email
         String email,
+
         @NotNull
         @NotBlank
         String password) {
