@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: mini-elastic-beanstalk
+
+  profiles:
+    active: ${SPRING_PROFILE:dev}
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:elasticbeanstalk}?createDatabaseIfNotExist=true
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# Application Configuration
+app:
+
+  storage:
+    base-path: ${STORAGE_PATH:/data/servers}
+
+  security:
+    jwt:
+      secret: ${JWT_SECRET:hde478sf00fr210h}
+      expiration: ${JWT_EXPIRATION:86400000}  # 24 hours
+      cookie-name: ${JWT_COOKIE_NAME:auth-token}
+      cookie-secure: ${COOKIE_SECURE:false}
+      cookie-http-only: ${JWT_COOKIE_HTTP_ONLY:true}
+      cookie-same-site: ${JWT_COOKIE_SAME_SITE:Strict}
+
+# SpringDoc OpenAPI
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
