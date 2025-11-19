@@ -87,6 +87,7 @@ public class AuthService {
     public User createUser(RegisterRequest request) {
 
         User user = User.builder()
+                .name(request.name())
                 .email(request.email())
                 .password(passwordEncoder.encode(request.password()))
                 .role(UserRole.USER)
