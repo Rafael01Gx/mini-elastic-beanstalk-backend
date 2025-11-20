@@ -64,22 +64,11 @@ public class AuthService {
     }
 
     public ResponseEntity<?> me(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            return ResponseEntity.status(401).body("Cookie não encontrado");
-        }
-        String token = null;
-        for (Cookie cookie : cookies) {
-            if (cookie.getName().equals(cookieName)) {
-                token = cookie.getValue();
-                break;
-            }
-        }
+        String token = getTokenFromCookie(request);
         if (token == null) {
             return ResponseEntity.status(401).body("Cookie não encontrado");
         }
-        User user = userRepository.findByEmail(jwtService.extractUsername(token)).orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
-
+        User user = getUserGetFromCookie(request);
         return ResponseEntity.ok(new UserDetails(user));
     }
 
@@ -119,6 +108,32 @@ public class AuthService {
                 cookieName
         );
         response.addHeader("Set-Cookie", cookie);
+    }
+
+    private String getTokenFromCookie(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        String token = null;
+
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals(cookieName)) {
+                token = cookie.getValue();
+                break;
+            }
+        }
+
+        return token;
+    }
+
+    public User getUserFromToken(String token) {
+        return userRepository.findByEmail(jwtService.extractUsername(token)).orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
+    }
+
+    public User getUserGetFromCookie(HttpServletRequest request) {
+        String token = getTokenFromCookie(request);
+        if (token == null) {
+            throw new NullPointerException("Token not found");
+        }
+        return getUserFromToken(token);
     }
 
 }

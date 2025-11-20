@@ -13,8 +13,11 @@ import com.elasticbeanstalk.mini_elastic_beanstalk.exception.UnauthorizedExcepti
 import com.elasticbeanstalk.mini_elastic_beanstalk.repository.AuditLogRepository;
 import com.elasticbeanstalk.mini_elastic_beanstalk.repository.ServerRepository;
 import com.elasticbeanstalk.mini_elastic_beanstalk.repository.UserRepository;
+import com.elasticbeanstalk.mini_elastic_beanstalk.service.auth.AuthService;
 import com.elasticbeanstalk.mini_elastic_beanstalk.service.docker.DockerNetworkService;
 import com.elasticbeanstalk.mini_elastic_beanstalk.util.FileSystemUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +39,8 @@ public class ServerService {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private AuthService authService;
+    @Autowired
     private ServerRepository serverRepository;
     @Autowired
     private DockerNetworkService dockerNetworkService;
@@ -48,7 +53,8 @@ public class ServerService {
     private String basePath;
 
     @Transactional
-    public ServerResponse createServer(CreateServerRequest request, Long userId) {
+    public ServerResponse createServer(CreateServerRequest dto, HttpServletRequest request) {
+        Long userId = authService.getUserGetFromCookie(request).getId();
         User user = userRepository.getReferenceById(userId);
         String serverId = UUID.randomUUID().toString();
 
@@ -66,8 +72,8 @@ public class ServerService {
             Server server = Server.builder()
                     .id(serverId)
                     .user(user)
-                    .name(request.name())
-                    .description(request.description())
+                    .name(dto.name())
+                    .description(dto.description())
                     .status(ServerStatus.ACTIVE)
                     .networkId(networkId)
                     .build();
@@ -76,7 +82,7 @@ public class ServerService {
 
             // Auditoria
             logAudit(userId, serverId, "SERVER_CREATED",
-                    Map.of("name", request.name()));
+                    Map.of("name", dto.name()));
 
             log.info("Servidor criado: {} para usuário: {}", serverId, userId);
 
@@ -89,14 +95,16 @@ public class ServerService {
         }
     }
 
-    public List<ServerResponse> listUserServers(Long userId) {
+    public List<ServerResponse> listUserServers(HttpServletRequest request) {
+        Long userId = authService.getUserGetFromCookie(request).getId();
         return serverRepository.findByUserId(userId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    public ServerResponse getServer(String serverId, Long userId) {
+    public ServerResponse getServer(String serverId, HttpServletRequest request) {
+        Long userId = authService.getUserGetFromCookie(request).getId();
         Server server = serverRepository.findById(serverId)
                 .orElseThrow(() -> new ResourceNotFoundException("Servidor não encontrado"));
 
@@ -108,17 +116,18 @@ public class ServerService {
     }
 
     @Transactional
-    public ServerResponse updateServer(String serverId, UpdateServerRequest request, Long userId) {
+    public ServerResponse updateServer(String serverId, UpdateServerRequest dto, HttpServletRequest request) {
+        Long userId = authService.getUserGetFromCookie(request).getId();
         Server server = getServerEntity(serverId, userId);
 
-        server.setName(request.name());
-        server.setDescription(request.description());
+        server.setName(dto.name());
+        server.setDescription(dto.description());
         server.setUpdatedAt(LocalDateTime.now());
 
         serverRepository.save(server);
 
         logAudit(userId, serverId, "SERVER_UPDATED",
-                Map.of("name", request.name()));
+                Map.of("name", dto.name()));
 
         return mapToResponse(server);
     }

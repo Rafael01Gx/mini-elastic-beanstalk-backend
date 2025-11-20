@@ -47,4 +47,10 @@ public class Container {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+
+    public void setStatus(String status) {
+        this.status = ContainerStatus.fromDockerContainerStatus(status);
+    };
+
 }
