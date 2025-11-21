@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface ServerRepository extends JpaRepository<Server,String> {
     List<Server> findByUserId(Long userId);
+
+    Boolean existsByIdAndUserId(String serverId, Long userId);
 }

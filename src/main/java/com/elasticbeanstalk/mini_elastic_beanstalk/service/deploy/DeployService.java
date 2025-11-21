@@ -4,15 +4,20 @@ import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.request.DeployRequ
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.DeployResponse;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.DeployResult;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.ValidationResult;
+import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.Container;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.Deploy;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.Server;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.enums.DeployStatus;
 import com.elasticbeanstalk.mini_elastic_beanstalk.exception.BusinessException;
 import com.elasticbeanstalk.mini_elastic_beanstalk.exception.ResourceNotFoundException;
 import com.elasticbeanstalk.mini_elastic_beanstalk.exception.UnauthorizedException;
+import com.elasticbeanstalk.mini_elastic_beanstalk.repository.ContainerRepository;
 import com.elasticbeanstalk.mini_elastic_beanstalk.repository.DeployRepository;
 import com.elasticbeanstalk.mini_elastic_beanstalk.repository.ServerRepository;
+import com.elasticbeanstalk.mini_elastic_beanstalk.service.auth.AuthService;
 import com.elasticbeanstalk.mini_elastic_beanstalk.service.docker.DockerComposeService;
+import com.elasticbeanstalk.mini_elastic_beanstalk.validator.ValidateServerAccess;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +32,10 @@ import java.util.concurrent.CompletableFuture;
 @Service
 @Slf4j
 public class DeployService {
-
+    @Autowired
+    private DeployExecutionService deployExecutionService;
+    @Autowired
+    private AuthService authService;
     @Autowired
     private DeployRepository deployRepository;
     @Autowired
@@ -38,12 +46,17 @@ public class DeployService {
     private FileUploadService fileUploadService;
     @Autowired
     private WorkspaceService workspaceService;
+    @Autowired
+    private ValidateServerAccess validateServerAccess;
+
 
     @Value("${app.storage.base-path}")
     private String basePath;
 
     @Transactional
-    public DeployResponse deploy(String serverId, DeployRequest request, Long userId) {
+    public DeployResponse deploy(String serverId, DeployRequest dto, HttpServletRequest req) {
+        Long userId = authService.getUserGetFromCookie(req).getId();
+
         Server server = serverRepository.findById(serverId)
                 .orElseThrow(() -> new ResourceNotFoundException("Servidor não encontrado"));
 
@@ -51,18 +64,17 @@ public class DeployService {
             throw new UnauthorizedException("Acesso negado");
         }
 
-        String workspace = request.workspace();
+        String workspace = dto.workspace();
         Path workspacePath = workspaceService.createWorkspace(serverId, workspace);
 
         try {
             Path composePath = workspacePath.resolve("docker-compose.yml");
             Path envPath = workspacePath.resolve(".env");
 
-            fileUploadService.saveFile(request.composeFile(), composePath);
-            if (request.envFile() != null) {
-                fileUploadService.saveFile(request.envFile(), envPath);
+            fileUploadService.saveFile(dto.composeFile(), composePath);
+            if (dto.envFile() != null) {
+                fileUploadService.saveFile(dto.envFile(), envPath);
             }
-
             ValidationResult validation = dockerComposeService.validateCompose(composePath);
             if (!validation.isValid()) {
                 throw new BusinessException("Compose inválido: " + validation.getErrors());
@@ -80,7 +92,7 @@ public class DeployService {
 
             deployRepository.save(deploy);
 
-            CompletableFuture.runAsync(() -> executeDeployment(deploy, composePath));
+            CompletableFuture.runAsync(() -> deployExecutionService.executeDeployment(deploy.getId()));
 
             return mapToResponse(deploy);
 
@@ -90,42 +102,11 @@ public class DeployService {
         }
     }
 
-    private void executeDeployment(Deploy deploy, Path composePath) {
-        try {
-            deploy.setStatus(DeployStatus.DEPLOYING);
-            deployRepository.save(deploy);
 
-            DeployResult result = dockerComposeService.deployCompose(
-                    deploy.getServer().getId(),
-                    composePath
-            );
+    public List<DeployResponse> listDeploys(String serverId, HttpServletRequest req) {
 
-            if (result.success()) {
-                deploy.setStatus(DeployStatus.SUCCESS);
-                registerContainers(deploy.getServer().getId(), result.containers());
-                log.info("Deploy concluído com sucesso: {}", deploy.getId());
-            } else {
-                deploy.setStatus(DeployStatus.FAILED);
-                deploy.setErrorMessage(result.errorMessage());
-                log.error("Deploy falhou: {}", result.errorMessage());
-            }
-
-        } catch (Exception e) {
-            deploy.setStatus(DeployStatus.FAILED);
-            deploy.setErrorMessage(e.getMessage());
-            log.error("Erro ao executar deploy", e);
-        } finally {
-            deploy.setUpdatedAt(LocalDateTime.now());
-            deployRepository.save(deploy);
-        }
-    }
-
-    private void registerContainers(String serverId, List<String> containerIds) {
-        // Implementar registro dos containers no banco
-    }
-
-    public List<DeployResponse> listDeploys(String serverId, Long userId) {
-        validateServerAccess(serverId, userId);
+        Long userId = authService.getUserGetFromCookie(req).getId();
+        validateServerAccess.validate(serverId, userId);
 
         return deployRepository.findByServerId(serverId)
                 .stream()
@@ -134,8 +115,9 @@ public class DeployService {
     }
 
     @Transactional
-    public void removeDeploy(String serverId, Long deployId, Long userId) {
-        validateServerAccess(serverId, userId);
+    public void removeDeploy(String serverId, Long deployId, HttpServletRequest req) {
+        Long userId = authService.getUserGetFromCookie(req).getId();
+        validateServerAccess.validate(serverId, userId);
 
         Deploy deploy = deployRepository.findById(deployId)
                 .orElseThrow(() -> new ResourceNotFoundException("Deploy não encontrado"));
@@ -148,14 +130,6 @@ public class DeployService {
         log.info("Deploy removido: {}", deployId);
     }
 
-    private void validateServerAccess(String serverId, Long userId) {
-        Server server = serverRepository.findById(serverId)
-                .orElseThrow(() -> new ResourceNotFoundException("Servidor não encontrado"));
-
-        if (!server.getUser().getId().equals(userId)) {
-            throw new UnauthorizedException("Acesso negado");
-        }
-    }
 
     private DeployResponse mapToResponse(Deploy deploy) {
         return DeployResponse.builder()

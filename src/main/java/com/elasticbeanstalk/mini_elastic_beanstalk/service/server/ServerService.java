@@ -133,7 +133,8 @@ public class ServerService {
     }
 
     @Transactional
-    public void deleteServer(String serverId, Long userId) {
+    public void deleteServer(String serverId, HttpServletRequest request) {
+        Long userId = authService.getUserGetFromCookie(request).getId();
         Server server = getServerEntity(serverId, userId);
 
         try {

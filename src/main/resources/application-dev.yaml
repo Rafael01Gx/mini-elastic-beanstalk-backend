@@ -1,0 +1,11 @@
+app:
+  docker:
+    host: tcp://localhost:2375
+    api-version: "1.41"
+
+spring:
+  flyway:
+    enabled: false
+
+server:
+  port: 8081

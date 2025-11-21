@@ -19,7 +19,6 @@ public class ServerController {
     private ServerService serverService;
 
 
-//    DELETE /api/servers/{id}      - Remover servidor completo
     @GetMapping
     public ResponseEntity<List<ServerResponse>> list(HttpServletRequest request) {
         return  ResponseEntity.ok().body(serverService.listUserServers(request));
@@ -28,6 +27,11 @@ public class ServerController {
     @PostMapping
     public ResponseEntity<ServerResponse> createServer(@RequestBody CreateServerRequest dto, HttpServletRequest request) {
         return ResponseEntity.ok().body(serverService.createServer(dto,request));
+    }
+
+    @PostMapping("/{id}/security-rules")
+    public ResponseEntity<String> setSecurityRules(@PathVariable("id") Long serverId, HttpServletRequest request) {
+        return ResponseEntity.ok().body("");
     }
 
     @GetMapping("/{id}")
@@ -41,7 +45,8 @@ public class ServerController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteServer(@PathVariable String id) {
-        return  ResponseEntity.ok().body("Delete Server:" + id);
+    public ResponseEntity<String> deleteServer(@PathVariable String id, HttpServletRequest request) {
+        serverService.deleteServer(id,request);
+        return  ResponseEntity.ok().body("Server deleted");
     }
 }

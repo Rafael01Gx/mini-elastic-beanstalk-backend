@@ -7,21 +7,21 @@ import com.elasticbeanstalk.mini_elastic_beanstalk.exception.DockerOperationExce
 import com.elasticbeanstalk.mini_elastic_beanstalk.util.YamlUtils;
 import com.github.dockerjava.api.DockerClient;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @Slf4j
 public class DockerComposeService {
 
+    @Autowired
     private DockerClient dockerClient;
+    @Autowired
     private YamlUtils yamlUtils;
 
     public DeployResult deployCompose(String serverId, Path composePath) {
@@ -102,9 +102,10 @@ public class DockerComposeService {
     }
 
     public ValidationResult validateCompose(Path composePath) {
-        try {
-            Map<String, Object> yaml = yamlUtils.loadYaml(composePath);
 
+        try {
+
+            Map<String, Object> yaml = yamlUtils.loadYaml(composePath);
             List<String> errors = new ArrayList<>();
 
             if (!yaml.containsKey("services")) {
@@ -192,4 +193,25 @@ public class DockerComposeService {
             return List.of();
         }
     }
+
+    private Map<String,List<String>> getProjectContainersIdAndNames(String projectName) {
+        Map<String,List<String>> containerIdAndNames = new HashMap<>();
+        try {
+            List<com.github.dockerjava.api.model.Container> containers =
+                    dockerClient.listContainersCmd()
+                            .withLabelFilter(Map.of("com.docker.compose.project", projectName))
+                            .exec();
+
+            containers.forEach(c -> {
+                containerIdAndNames.put(c.getId(), Arrays.stream(c.getNames()).toList());
+            });
+
+            return containerIdAndNames;
+
+        } catch (Exception e) {
+            log.error("Erro ao listar containers do projeto", e);
+            return Map.of();
+        }
+    }
+
 }
