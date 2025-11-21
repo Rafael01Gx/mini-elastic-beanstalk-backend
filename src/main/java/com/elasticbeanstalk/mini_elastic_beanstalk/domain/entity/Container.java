@@ -27,7 +27,7 @@ public class Container {
     @ManyToOne(fetch = FetchType.LAZY)
     private Server server;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY , cascade = CascadeType.ALL)
     private Deploy deploy;
 
     private String name;

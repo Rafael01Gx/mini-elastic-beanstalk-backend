@@ -24,7 +24,7 @@ public class Deploy {
     private Long id;
 
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JsonAlias("server_id")
     private Server server;
 

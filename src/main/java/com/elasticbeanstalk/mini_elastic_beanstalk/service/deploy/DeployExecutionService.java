@@ -4,6 +4,7 @@ import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.DeployRes
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.Container;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.Deploy;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.Server;
+import com.elasticbeanstalk.mini_elastic_beanstalk.domain.enums.ContainerStatus;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.enums.DeployStatus;
 import com.elasticbeanstalk.mini_elastic_beanstalk.exception.BusinessException;
 import com.elasticbeanstalk.mini_elastic_beanstalk.repository.ContainerRepository;
@@ -40,13 +41,14 @@ public class DeployExecutionService {
             deployRepository.save(deploy);
 
             DeployResult result = dockerComposeService.deployCompose(
-                    deploy.getServer().getId(),
+                    deploy,
                     composePath
             );
 
+
             if (result.success()) {
                 deploy.setStatus(DeployStatus.SUCCESS);
-                registerContainers(deploy.getServer(), result);
+                registerContainers(deploy.getServer(), deploy,result);
                 log.info("Deploy concluído com sucesso: {}", deploy.getId());
             } else {
                 deploy.setStatus(DeployStatus.FAILED);
@@ -64,12 +66,26 @@ public class DeployExecutionService {
         }
     }
 
-    private void registerContainers(Server server,DeployResult result  ) {
+    private void registerContainers(Server server,Deploy deploy, DeployResult result) {
+        List<String> cNames = result.names();
         List<String> containerIds = result.containers();
-        containerIds.forEach(containerId -> {
-            Container container = Container.builder().server(server).id(containerId).build();
+
+        if (cNames.size() != containerIds.size()) {
+            throw new IllegalStateException("A quantidade de IDs e Nomes não coincide.");
+        }
+
+        for (int i = 0; i < containerIds.size(); i++) {
+            Container container = Container.builder()
+                    .server(server)
+                    .id(containerIds.get(i))
+                    .name(cNames.get(i).replaceAll("[/\\[\\]]", ""))
+                    .image(cNames.get(i).replaceAll("[/\\[\\]]", ""))
+                    .deploy(deploy)
+                    .status(ContainerStatus.CREATED)
+                    .build();
+
             containerRepository.save(container);
-        });
+        }
     }
 
 }

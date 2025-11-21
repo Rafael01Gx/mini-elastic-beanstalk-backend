@@ -2,6 +2,7 @@ package com.elasticbeanstalk.mini_elastic_beanstalk.service.docker;
 
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.DeployResult;
 import com.elasticbeanstalk.mini_elastic_beanstalk.domain.dto.response.ValidationResult;
+import com.elasticbeanstalk.mini_elastic_beanstalk.domain.entity.Deploy;
 import com.elasticbeanstalk.mini_elastic_beanstalk.exception.BusinessException;
 import com.elasticbeanstalk.mini_elastic_beanstalk.exception.DockerOperationException;
 import com.elasticbeanstalk.mini_elastic_beanstalk.util.YamlUtils;
@@ -24,7 +25,8 @@ public class DockerComposeService {
     @Autowired
     private YamlUtils yamlUtils;
 
-    public DeployResult deployCompose(String serverId, Path composePath) {
+    public DeployResult deployCompose(Deploy deploy, Path composePath) {
+       var serverId = deploy.getServer().getId();
         try {
             String projectName = "app-" + serverId;
             Path workDir = composePath.getParent();
@@ -54,11 +56,14 @@ public class DockerComposeService {
             int exitCode = process.waitFor();
 
             if (exitCode == 0) {
-                List<String> containerIds = getProjectContainers(projectName);
-
+                Map<String,String> idAndNames = getProjectContainersIdAndNames(projectName);
+                List<String> ids = new ArrayList<>(idAndNames.keySet());
+                List<String> c_names = new ArrayList<>(idAndNames.values());
                 return DeployResult.builder()
                         .success(true)
-                        .containers(containerIds)
+                        .deployId(deploy.getId())
+                        .containers(ids)
+                        .names(c_names)
                         .output(output.toString())
                         .build();
             } else {
@@ -194,8 +199,8 @@ public class DockerComposeService {
         }
     }
 
-    private Map<String,List<String>> getProjectContainersIdAndNames(String projectName) {
-        Map<String,List<String>> containerIdAndNames = new HashMap<>();
+    private Map<String,String> getProjectContainersIdAndNames(String projectName) {
+        Map<String,String> containerIdAndNames = new HashMap<>();
         try {
             List<com.github.dockerjava.api.model.Container> containers =
                     dockerClient.listContainersCmd()
@@ -203,7 +208,7 @@ public class DockerComposeService {
                             .exec();
 
             containers.forEach(c -> {
-                containerIdAndNames.put(c.getId(), Arrays.stream(c.getNames()).toList());
+                containerIdAndNames.put(c.getId(), Arrays.toString(c.getNames()));
             });
 
             return containerIdAndNames;

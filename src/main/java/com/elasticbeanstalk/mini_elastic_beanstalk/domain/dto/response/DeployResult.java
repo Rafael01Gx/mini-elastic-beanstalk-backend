@@ -5,5 +5,5 @@ import lombok.Builder;
 import java.util.List;
 
 @Builder
-public record DeployResult(Boolean success, String errorMessage, String output, List<String> containers) {
+public record DeployResult(Boolean success,Long deployId ,String errorMessage, String output, List<String> containers,List<String> names) {
 }
